@@ -363,6 +363,7 @@ const ModalContent: FC<Props> = ({
   }, [markdownEl]);
 
   const [processing, setProcessing] = useState(false);
+  const [processingAction, setProcessingAction] = useState<'copy' | 'save' | 'saveAll' | null>(null);
   const [allowCopy, setAllowCopy] = useState(false);
   const saveButtonLabel = `${Platform.isMobile ? L.saveVault() : L.save()} (${getFormatDisplayName(formData.format)})`;
   const [rootHeight, setRootHeight] = useState(0);
@@ -429,6 +430,7 @@ const ModalContent: FC<Props> = ({
     if (!root.current) return;
 
     setProcessing(true);
+    setProcessingAction('save');
     try {
       await save(
         app,
@@ -443,6 +445,7 @@ const ModalContent: FC<Props> = ({
       new Notice(L.saveFail());
     } finally {
       setProcessing(false);
+      setProcessingAction(null);
     }
   }, [root, formData.resolutionMode, formData.format, title, formData.width]);
   const handleCopy = useCallback(async () => {
@@ -453,12 +456,14 @@ const ModalContent: FC<Props> = ({
     if (!root.current) return;
 
     setProcessing(true);
+    setProcessingAction('copy');
     try {
       await copy(root.current.contentElement, formData.resolutionMode, formData.format, formData.assetMark);
     } catch {
       new Notice(L.copyFail());
     } finally {
       setProcessing(false);
+      setProcessingAction(null);
     }
   }, [root, formData.resolutionMode, formData.format, title, formData.width]);
 
@@ -470,6 +475,7 @@ const ModalContent: FC<Props> = ({
     if (!root.current) return;
 
     setProcessing(true);
+    setProcessingAction('saveAll');
     try {
       await saveAll(
         root.current,
@@ -486,6 +492,7 @@ const ModalContent: FC<Props> = ({
       new Notice(L.saveFail());
     } finally {
       setProcessing(false);
+      setProcessingAction(null);
     }
   }, [root, formData.format, formData.resolutionMode, formData.split, app, title]);
 
@@ -587,7 +594,9 @@ const ModalContent: FC<Props> = ({
                 void handleCopy();
               }}
               disabled={processing || !allowCopy || isLoading}
+              aria-busy={processingAction === 'copy'}
             >
+              {processingAction === 'copy' && <span className='export-image-action-spinner' aria-hidden='true'></span>}
               {L.copy()}
             </button>
             {allowCopy || <p>{L.notAllowCopy({ format: formData.format.replace(/\d$/, '').toUpperCase() })}</p>}
@@ -599,7 +608,11 @@ const ModalContent: FC<Props> = ({
             void (pages === 1 ? handleSave() : handleSaveAll());
           }}
           disabled={processing || isLoading}
+          aria-busy={processingAction === 'save' || processingAction === 'saveAll'}
         >
+          {(processingAction === 'save' || processingAction === 'saveAll') && (
+            <span className='export-image-action-spinner' aria-hidden='true'></span>
+          )}
           {saveButtonLabel}
         </button>
       </div>

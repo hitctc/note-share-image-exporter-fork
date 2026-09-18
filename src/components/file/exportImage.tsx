@@ -97,6 +97,8 @@ export default async function (
       width: '85vw',
       maxWidth: '1500px',
     });
+    // 覆盖 Obsidian 弹窗内容区的默认底部内边距，让操作按钮直接贴近底部。
+    modal.contentEl.setCssStyles({ paddingBottom: '0' });
     modal.open();
     const root = createRoot(modal.contentEl);
 
