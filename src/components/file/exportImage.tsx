@@ -93,12 +93,12 @@ export default async function (
   else {
     const modal = new Modal(app);
     modal.setTitle(L.imageExportPreview());
+    // 仅覆盖当前文件导出弹窗实例的底部内边距，不影响其他弹窗或插件。
     modal.modalEl.setCssStyles({
       width: '85vw',
       maxWidth: '1500px',
+      paddingBottom: '0',
     });
-    // 覆盖 Obsidian 弹窗内容区的默认底部内边距，让操作按钮直接贴近底部。
-    modal.contentEl.setCssStyles({ paddingBottom: '0' });
     modal.open();
     const root = createRoot(modal.contentEl);
 
