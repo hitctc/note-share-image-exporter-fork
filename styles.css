@@ -83,6 +83,8 @@ If your plugin does not need CSS, delete this file.
 
 .export-image-preview-out {
   width: 100%;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
   transition: width 0.25s;
   background-size: 20px 20px;
   background-position: 0 0, 10px 10px;
@@ -141,7 +143,6 @@ If your plugin does not need CSS, delete this file.
   padding: 12px 0 var(--size-4-4);
   background: var(--background-primary);
   border-top: 1px solid var(--background-modifier-border);
-  box-shadow: 0 -6px 12px var(--background-primary);
 }
 .export-image-preview-actions button {
   margin: 0 32px;
@@ -206,11 +207,18 @@ If your plugin does not need CSS, delete this file.
   border-left: 1px solid var(--background-modifier-border);
 }
 
+.export-image-file-modal .modal-header {
+  margin-bottom: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
 .export-image-file-preview-settings {
   flex: 1 1 auto;
   min-height: 0;
   margin-right: -20px;
   padding-right: 20px;
+  padding-bottom: 20px;
   overflow-y: auto;
 }
 

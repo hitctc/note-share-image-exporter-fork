@@ -96,6 +96,8 @@ export default async function (
   else {
     const modal = new Modal(app);
     modal.setTitle(L.imageExportPreview());
+    // 限定标题样式到当前图片导出弹窗，避免覆盖 Obsidian 的其他 Modal。
+    modal.modalEl.addClass('export-image-file-modal');
     // 仅覆盖当前文件导出弹窗实例的底部内边距，不影响其他弹窗或插件。
     modal.modalEl.setCssStyles({
       width: '85vw',
