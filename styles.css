@@ -167,14 +167,10 @@ If your plugin does not need CSS, delete this file.
 }
 
 .export-image-file-preview-root {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
   min-height: 0;
 }
 
 .export-image-file-preview-main {
-  flex: 1 1 auto;
   align-items: flex-start;
   flex-wrap: nowrap;
   min-height: 0;

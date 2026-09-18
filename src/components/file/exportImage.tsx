@@ -125,6 +125,7 @@ export default async function (
         title={file.basename}
         metadataMap={metadataMap}
         app={app}
+        modalContentEl={modal.contentEl}
       />,
     );
 

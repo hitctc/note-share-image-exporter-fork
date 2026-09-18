@@ -279,6 +279,7 @@ interface Props {
   frontmatter: FrontMatterCache | undefined;
   metadataMap: Record<string, { type: MetadataType }>;
   title: string;
+  modalContentEl: HTMLElement;
 }
 
 /**
@@ -291,7 +292,7 @@ function getFormatDisplayName(format: FileFormat): string {
 }
 
 const ModalContent: FC<Props> = ({
-  markdownEl, settings, frontmatter, metadataMap, title, app,
+  markdownEl, settings, frontmatter, metadataMap, title, app, modalContentEl,
 }) => {
   const [formData, setFormData] = useState<ISettings>(settings);
   const [availableFormats, setAvailableFormats] = useState<FileFormat[]>(formatAvailable);
@@ -313,12 +314,38 @@ const ModalContent: FC<Props> = ({
   }, [formData]);
 
   const root = useRef<TargetRef>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
   const [mainHeight, setMainHeight] = useState(0);
+  const [columnHeight, setColumnHeight] = useState(0);
   const [fitScale, setFitScale] = useState(1);
   const [isGrabbing, setIsGrabbing] = useState(false);
   const previewOutRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const updateColumnHeight = () => {
+      const contentStyles = getComputedStyle(modalContentEl);
+      const mainStyles = mainRef.current ? getComputedStyle(mainRef.current) : null;
+      const contentPadding = parseFloat(contentStyles.paddingTop) + parseFloat(contentStyles.paddingBottom);
+      const mainMargin = mainStyles
+        ? parseFloat(mainStyles.marginTop) + parseFloat(mainStyles.marginBottom)
+        : 0;
+      const height = modalContentEl.clientHeight - contentPadding - mainMargin;
+
+      if (height > 0) {
+        setColumnHeight(height);
+      }
+    };
+
+    updateColumnHeight();
+    const observer = new ResizeObserver(updateColumnHeight);
+    observer.observe(modalContentEl);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [modalContentEl]);
 
   useEffect(() => {
     const updatePreviewHeight = () => {
@@ -517,8 +544,15 @@ const ModalContent: FC<Props> = ({
 
   return (
     <div className='export-image-preview-root export-image-file-preview-root'>
-      <div className='export-image-preview-main export-image-file-preview-main'>
-        <div className='export-image-preview-left'>
+      <div
+        ref={mainRef}
+        className='export-image-preview-main export-image-file-preview-main'
+        style={{ height: columnHeight }}
+      >
+        <div
+          className='export-image-preview-left'
+          style={{ height: columnHeight }}
+        >
           <div
             className='export-image-preview-out'
             ref={previewOutRef}
@@ -594,7 +628,10 @@ const ModalContent: FC<Props> = ({
           </div>
           <div className='info-text'>{L.guide()}</div>
         </div>
-        <div className='export-image-preview-right export-image-file-preview-right'>
+        <div
+          className='export-image-preview-right export-image-file-preview-right'
+          style={{ height: columnHeight }}
+        >
           <div className='export-image-file-preview-settings'>
             <FormItems
               formSchema={getFormSchema(formData, availableFormats)}
