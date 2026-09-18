@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "build:vault": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production --vault",
     "lint": "eslint .",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "typesafe-i18n": "typesafe-i18n"

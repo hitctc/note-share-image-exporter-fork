@@ -1,5 +1,7 @@
 import process from 'node:process';
+import path from 'node:path';
 import { builtinModules } from 'node:module';
+import { promises as fs, readFileSync } from 'node:fs';
 import esbuild from 'esbuild';
 
 const banner = `/*
@@ -9,6 +11,105 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = process.argv[2] === 'production';
+const vaultMode = process.argv.includes('--vault');
+const vaultDir = process.env.OBSIDIAN_VAULT_DIR?.trim() || readLocalVaultDir();
+const artifactFiles = ['main.js', 'manifest.json', 'styles.css'];
+
+/**
+ * 从项目根目录的本地 .env 读取 Vault 路径，避免依赖终端启动方式。
+ */
+function readLocalVaultDir() {
+  try {
+    const content = readFileSync(path.resolve('.env'), 'utf8');
+    const line = content
+      .split(/\r?\n/)
+      .find((entry) => entry.trim().startsWith('OBSIDIAN_VAULT_DIR='));
+    if (!line) return '';
+
+    const value = line.slice('OBSIDIAN_VAULT_DIR='.length).trim();
+    return value.replace(/^([\"'])(.*)\1$/, '$2').trim();
+  } catch {
+    return '';
+  }
+}
+
+if (vaultMode && !vaultDir) {
+  throw new Error('未配置 Vault 路径，请设置 OBSIDIAN_VAULT_DIR 或填写项目根目录 .env。');
+}
+
+/**
+ * 读取 manifest 中的插件 ID，确保同步目录与插件自身配置一致。
+ */
+async function readPluginId() {
+  const manifestPath = path.resolve('manifest.json');
+  const content = await fs.readFile(manifestPath, 'utf8');
+  const manifest = JSON.parse(content);
+  const pluginId = typeof manifest.id === 'string' ? manifest.id.trim() : '';
+
+  if (!pluginId) {
+    throw new Error('manifest.json 缺少有效的 id 字段，无法同步到 Vault。');
+  }
+
+  return pluginId;
+}
+
+/**
+ * 将构建产物同步到 Vault 插件目录，并替换同名软链接目录。
+ */
+async function syncArtifactsToVault() {
+  if (!vaultMode || !vaultDir) return;
+
+  const pluginId = await readPluginId();
+  const pluginDir = path.join(vaultDir, '.obsidian', 'plugins', pluginId);
+  const currentStat = await fs.lstat(pluginDir).catch(() => null);
+
+  // 目标目录是软链接时先移除，避免测试时仍然依赖项目路径。
+  if (currentStat?.isSymbolicLink()) {
+    await fs.rm(pluginDir, { recursive: true, force: true });
+  }
+
+  await fs.mkdir(pluginDir, { recursive: true });
+
+  for (const fileName of artifactFiles) {
+    const sourcePath = path.resolve(fileName);
+    const targetPath = path.join(pluginDir, fileName);
+
+    try {
+      await fs.access(sourcePath);
+    } catch {
+      if (fileName === 'styles.css') continue;
+      throw new Error(`未找到必需产物 ${fileName}，请先完成构建。`);
+    }
+
+    // 使用临时文件后原子替换，避免 Obsidian 读取到半写入文件。
+    const tempPath = `${targetPath}.tmp-${Date.now()}`;
+    await fs.copyFile(sourcePath, tempPath);
+    await fs.rename(tempPath, targetPath);
+  }
+
+  console.log(`[vault-sync] 已同步到 ${pluginDir}`);
+}
+
+/**
+ * 在构建结束后同步产物，保证 Vault 中始终使用本次构建结果。
+ */
+const vaultSyncPlugin = {
+  name: 'vault-sync-plugin',
+  setup(build) {
+    build.onEnd(async (result) => {
+      if (!vaultMode || !vaultDir || result.errors.length > 0) return;
+
+      try {
+        await syncArtifactsToVault();
+      } catch (error) {
+        process.exitCode = 1;
+        console.error(
+          `[vault-sync] 同步失败: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    });
+  },
+};
 
 const context = await esbuild.context({
   banner: {
@@ -47,6 +148,7 @@ const context = await esbuild.context({
   treeShaking: true,
   outfile: 'main.js',
   minify: prod,
+  plugins: [vaultSyncPlugin],
 });
 
 if (prod) {
