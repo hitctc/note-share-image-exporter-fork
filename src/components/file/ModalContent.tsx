@@ -379,7 +379,7 @@ const ModalContent: FC<Props> = ({
       1,
       mainHeight / (contentHeight || 100),
       previewWidth / ((contentWidth || 0) + 2),
-    ) / 2;
+    );
   }, [mainHeight]);
 
   useEffect(() => {
@@ -508,7 +508,8 @@ const ModalContent: FC<Props> = ({
               </div>
             ) : (
               <TransformWrapper
-                minScale={calculateScale()}
+                // 先允许缩放到较小比例，再在组件初始化后按容器尺寸适配完整预览。
+                minScale={0.01}
                 maxScale={4}
                 pinch={{ step: 20 }}
                 doubleClick={{ mode: 'reset' }}
@@ -518,6 +519,14 @@ const ModalContent: FC<Props> = ({
                 }}
                 onPanningStop={() => {
                   setIsGrabbing(false);
+                }}
+                onInit={(transformRef) => {
+                  // 此时 Target 已挂载，可以测量真实长宽并让长边完整显示。
+                  activeWindow.requestAnimationFrame(() => {
+                    const fitScale = calculateScale();
+                    transformRef.centerView(fitScale, 0);
+                    setScale(fitScale);
+                  });
                 }}
                 onTransformed={(e) => {
                   setScale(e.state.scale);
