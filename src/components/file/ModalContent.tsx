@@ -290,10 +290,6 @@ function getFormatDisplayName(format: FileFormat): string {
   return format.replace(/\d$/, '').toUpperCase();
 }
 
-const PREVIEW_MAX_HEIGHT = 560;
-const PREVIEW_MIN_HEIGHT = 320;
-const PREVIEW_COLUMN_EXTRA_HEIGHT = 80;
-
 const ModalContent: FC<Props> = ({
   markdownEl, settings, frontmatter, metadataMap, title, app,
 }) => {
@@ -325,20 +321,21 @@ const ModalContent: FC<Props> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const calculateHeight = () => {
-      // 预览高度只参考窗口可用空间，不再跟随整个 Modal 容器内容高度增长。
-      const height = Math.min(
-        PREVIEW_MAX_HEIGHT,
-        Math.max(PREVIEW_MIN_HEIGHT, Math.round(activeWindow.innerHeight * 0.8) - 280),
-      );
-      setMainHeight(height);
+    const updatePreviewHeight = () => {
+      const height = previewOutRef.current?.clientHeight ?? 0;
+      if (height > 0) {
+        setMainHeight(height);
+      }
     };
 
-    calculateHeight();
-    activeWindow.addEventListener('resize', calculateHeight);
+    updatePreviewHeight();
+    const observer = new ResizeObserver(updatePreviewHeight);
+    if (previewOutRef.current) {
+      observer.observe(previewOutRef.current);
+    }
 
     return () => {
-      activeWindow.removeEventListener('resize', calculateHeight);
+      observer.disconnect();
     };
   }, []);
 
@@ -377,17 +374,17 @@ const ModalContent: FC<Props> = ({
   const [rootHeight, setRootHeight] = useState(0);
   const [pages, setPages] = useState(1);
   const [scale, setScale] = useState(1);
-  const previewColumnHeight = mainHeight + PREVIEW_COLUMN_EXTRA_HEIGHT;
 
   const calculateScale = useCallback(() => {
     if (!root.current?.element || !previewOutRef.current) return 1;
     const contentHeight = root.current.element.clientHeight;
     const contentWidth = root.current.element.clientWidth;
     const previewWidth = previewOutRef.current.clientWidth;
+    const previewHeight = mainHeight || previewOutRef.current.clientHeight;
 
     return Math.min(
       1,
-      mainHeight / (contentHeight || 100),
+      previewHeight / (contentHeight || 100),
       previewWidth / ((contentWidth || 0) + 2),
     );
   }, [mainHeight]);
@@ -521,15 +518,11 @@ const ModalContent: FC<Props> = ({
   return (
     <div className='export-image-preview-root export-image-file-preview-root'>
       <div className='export-image-preview-main export-image-file-preview-main'>
-        <div
-          className='export-image-preview-left'
-          style={{ height: previewColumnHeight }}
-        >
+        <div className='export-image-preview-left'>
           <div
             className='export-image-preview-out'
             ref={previewOutRef}
             style={{
-              height: mainHeight,
               cursor: isGrabbing ? 'grabbing' : 'grab',
             }}
           >
@@ -556,7 +549,7 @@ const ModalContent: FC<Props> = ({
                 }}
                 onInit={(previewRef) => {
                   // 此时 Target 已挂载，可以测量真实长宽并让长边完整显示。
-                  activeWindow.requestAnimationFrame(() => {
+                  window.requestAnimationFrame(() => {
                     const nextScale = calculateScale();
                     setFitScale(nextScale);
                     previewRef.centerView(nextScale, 0);
@@ -574,7 +567,7 @@ const ModalContent: FC<Props> = ({
                   }}
                   wrapperStyle={{
                     width: '100%',
-                    height: mainHeight,
+                    height: '100%',
                   }}
                   contentStyle={{
                     border: '1px var(--divider-color) solid',

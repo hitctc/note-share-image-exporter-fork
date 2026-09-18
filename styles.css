@@ -187,6 +187,19 @@ If your plugin does not need CSS, delete this file.
   width: 50%;
 }
 
+.export-image-file-preview-left {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.export-image-file-preview-left .export-image-preview-out {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto !important;
+}
+
 .export-image-file-preview-right {
   display: flex;
   flex: 0 0 50%;
@@ -195,11 +208,14 @@ If your plugin does not need CSS, delete this file.
   min-height: 0;
   padding-bottom: 0;
   overflow: hidden;
+  border-left: 1px solid var(--background-modifier-border);
 }
 
 .export-image-file-preview-settings {
   flex: 1 1 auto;
   min-height: 0;
+  margin-right: -20px;
+  padding-right: 20px;
   overflow-y: auto;
 }
 
