@@ -191,9 +191,8 @@ If your plugin does not need CSS, delete this file.
 }
 
 .export-image-file-preview-left .export-image-preview-out {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
-  height: auto !important;
 }
 
 .export-image-file-preview-right {

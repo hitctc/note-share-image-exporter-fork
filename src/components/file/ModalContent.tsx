@@ -315,6 +315,8 @@ const ModalContent: FC<Props> = ({
 
   const root = useRef<TargetRef>(null);
   const mainRef = useRef<HTMLDivElement>(null);
+  const previewLeftRef = useRef<HTMLDivElement>(null);
+  const guideRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
   const [mainHeight, setMainHeight] = useState(0);
   const [columnHeight, setColumnHeight] = useState(0);
@@ -324,47 +326,44 @@ const ModalContent: FC<Props> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const updateColumnHeight = () => {
+    const updateLayoutHeight = () => {
       const contentStyles = getComputedStyle(modalContentEl);
       const mainStyles = mainRef.current ? getComputedStyle(mainRef.current) : null;
+      const leftStyles = previewLeftRef.current ? getComputedStyle(previewLeftRef.current) : null;
+      const guideStyles = guideRef.current ? getComputedStyle(guideRef.current) : null;
       const contentPadding = parseFloat(contentStyles.paddingTop) + parseFloat(contentStyles.paddingBottom);
       const mainMargin = mainStyles
         ? parseFloat(mainStyles.marginTop) + parseFloat(mainStyles.marginBottom)
         : 0;
-      const height = modalContentEl.clientHeight - contentPadding - mainMargin;
+      const columnHeight = modalContentEl.clientHeight - contentPadding - mainMargin;
+      const leftPadding = leftStyles
+        ? parseFloat(leftStyles.paddingTop) + parseFloat(leftStyles.paddingBottom)
+        : 0;
+      const guideHeight = guideRef.current?.offsetHeight ?? 0;
+      const guideMargin = guideStyles
+        ? parseFloat(guideStyles.marginTop) + parseFloat(guideStyles.marginBottom)
+        : 0;
+      const previewHeight = columnHeight - leftPadding - guideHeight - guideMargin;
 
-      if (height > 0) {
-        setColumnHeight(height);
+      if (columnHeight > 0) {
+        setColumnHeight(columnHeight);
+      }
+      if (previewHeight > 0) {
+        setMainHeight(previewHeight);
       }
     };
 
-    updateColumnHeight();
-    const observer = new ResizeObserver(updateColumnHeight);
+    updateLayoutHeight();
+    const observer = new ResizeObserver(updateLayoutHeight);
     observer.observe(modalContentEl);
+    if (mainRef.current) observer.observe(mainRef.current);
+    if (previewLeftRef.current) observer.observe(previewLeftRef.current);
+    if (guideRef.current) observer.observe(guideRef.current);
 
     return () => {
       observer.disconnect();
     };
   }, [modalContentEl]);
-
-  useEffect(() => {
-    const updatePreviewHeight = () => {
-      const height = previewOutRef.current?.clientHeight ?? 0;
-      if (height > 0) {
-        setMainHeight(height);
-      }
-    };
-
-    updatePreviewHeight();
-    const observer = new ResizeObserver(updatePreviewHeight);
-    if (previewOutRef.current) {
-      observer.observe(previewOutRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
 
   useEffect(() => {
     let timeoutId: number | undefined;
@@ -550,6 +549,7 @@ const ModalContent: FC<Props> = ({
         style={{ height: columnHeight }}
       >
         <div
+          ref={previewLeftRef}
           className='export-image-preview-left'
           style={{ height: columnHeight }}
         >
@@ -557,6 +557,7 @@ const ModalContent: FC<Props> = ({
             className='export-image-preview-out'
             ref={previewOutRef}
             style={{
+              height: mainHeight,
               cursor: isGrabbing ? 'grabbing' : 'grab',
             }}
           >
@@ -601,7 +602,7 @@ const ModalContent: FC<Props> = ({
                   }}
                   wrapperStyle={{
                     width: '100%',
-                    height: '100%',
+                    height: mainHeight,
                   }}
                   contentStyle={{
                     border: '1px var(--divider-color) solid',
@@ -626,7 +627,7 @@ const ModalContent: FC<Props> = ({
               </TransformWrapper>
             )}
           </div>
-          <div className='info-text'>{L.guide()}</div>
+          <div ref={guideRef} className='info-text'>{L.guide()}</div>
         </div>
         <div
           className='export-image-preview-right export-image-file-preview-right'
