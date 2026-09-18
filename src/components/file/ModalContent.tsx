@@ -487,9 +487,9 @@ const ModalContent: FC<Props> = ({
         Platform.isMobile,
         formData.assetMark,
       );
-      // 导出成功后定位到文件，避免用户自己去找落盘位置。
+      // 导出成功后已有保存成功的 Notice，这里只负责稍后定位到文件。
       if (filePath) {
-        revealFileInFolder(filePath);
+        void revealFileInFolder(filePath);
       }
     } catch {
       new Notice(L.saveFail());
@@ -538,9 +538,9 @@ const ModalContent: FC<Props> = ({
         title,
         formData.assetMark,
       );
-      // 导出成功后定位到文件，避免用户自己去找落盘位置。
+      // 导出成功后已有保存成功的 Notice，这里只负责稍后定位到文件。
       if (filePath) {
-        revealFileInFolder(filePath);
+        void revealFileInFolder(filePath);
       }
     } catch {
       new Notice(L.saveFail());

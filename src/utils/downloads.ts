@@ -1,4 +1,8 @@
 import { Platform } from 'obsidian';
+import { delay } from '.';
+
+// 导出成功提示到定位文件之间的间隔，留出时间让用户看到 Notice，也避开文件管理器抢在提示前弹出。
+const REVEAL_DELAY = 1000;
 
 type ElectronRemote = {
   app?: { getPath?: (name: string) => string };
@@ -104,13 +108,16 @@ export async function saveBlobToDownloads(blob: Blob, filename: string): Promise
 /**
  * 在系统文件管理器中定位导出文件：macOS 打开 Finder 并高亮，Windows 打开资源管理器并选中。
  * Electron 的 shell.showItemInFolder 已按平台选择实现，无需自己拼 open -R 或 explorer /select。
+ * 会先延迟一小段时间再弹出，因为调用方总是已先弹了导出成功的 Notice。
  * @param filePath 导出文件的绝对路径
- * @returns 无返回值；移动端或 Electron 不可用时静默跳过
+ * @returns Promise；移动端或 Electron 不可用时静默跳过
  */
-export function revealFileInFolder(filePath: string): void {
+export async function revealFileInFolder(filePath: string): Promise<void> {
   if (!Platform.isDesktop) {
     return;
   }
+
+  await delay(REVEAL_DELAY);
 
   try {
     getElectronRemote()?.shell?.showItemInFolder?.(filePath);

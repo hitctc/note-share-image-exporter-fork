@@ -27,11 +27,13 @@ type ExportBlobFile = {
 /**
  * 保存导出结果。桌面端自己写入系统下载目录，从而拿到确定路径供导出后定位文件使用；
  * 拿不到桌面能力时回退到浏览器下载，此时路径未知。
+ * 落盘成功均会弹 Notice 告知保存位置，保持与移动端一致的反馈。
  * @returns 桌面端写入的文件绝对路径；回退下载时为 undefined
  */
 async function saveAs(blob: Blob, filename: string): Promise<string | undefined> {
   const filePath = await saveBlobToDownloads(blob, filename);
   if (filePath) {
+    new Notice(L.saveSuccess({ filePath }));
     return filePath;
   }
 
@@ -511,7 +513,7 @@ export async function saveMultipleFiles(
 
   // 批量导出只定位一次，否则会同时弹出多个文件管理器窗口。
   if (lastSavedPath) {
-    revealFileInFolder(lastSavedPath);
+    void revealFileInFolder(lastSavedPath);
   }
 }
 
