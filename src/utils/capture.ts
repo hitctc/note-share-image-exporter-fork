@@ -44,6 +44,23 @@ function getSolidBackground(el: HTMLElement): string {
     : backgroundColor;
 }
 
+/**
+ * 获取导出节点的真实布局尺寸，避免预览变换或瞬时布局导致生成 1×1 图片。
+ * @param el 参与导出的内容节点
+ * @returns 用于 html-to-image 的有效宽高
+ * @throws 当节点尚未完成布局且宽高均为 0 时抛出错误
+ */
+function getExportDimensions(el: HTMLElement): { width: number; height: number } {
+  const width = Math.max(el.scrollWidth, el.clientWidth);
+  const height = Math.max(el.scrollHeight, el.clientHeight);
+
+  if (width <= 0 || height <= 0) {
+    throw new Error('Export content has no measurable dimensions');
+  }
+
+  return { width, height };
+}
+
 async function canvasToBlob(canvas: HTMLCanvasElement, mime: string): Promise<Blob> {
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, mime, 0.92);
@@ -73,10 +90,11 @@ async function getBlob(
   const MAX_SCALE = 4;
   const finalScale = Math.min(scale * pixelRatio, MAX_SCALE);
   const mime = getMime(format);
+  const { width, height } = getExportDimensions(el);
 
   const options = {
-    width: el.clientWidth,
-    height: el.clientHeight,
+    width,
+    height,
     pixelRatio: finalScale,
     cacheBust: true,
     type: mime,
@@ -100,10 +118,11 @@ async function getBlob(
 
 async function makePdf(blob: Blob, el: HTMLElement) {
   const dataUrl = await fileToBase64(blob);
+  const { width, height } = getExportDimensions(el);
   const pdf = new JsPdf({
     unit: 'in',
-    format: [el.clientWidth / 96, el.clientHeight / 96],
-    orientation: el.clientWidth > el.clientHeight ? 'l' : 'p',
+    format: [width / 96, height / 96],
+    orientation: width > height ? 'l' : 'p',
     compress: true,
   });
   pdf.addImage(
@@ -111,8 +130,8 @@ async function makePdf(blob: Blob, el: HTMLElement) {
     'JPEG',
     0,
     0,
-    el.clientWidth / 96,
-    el.clientHeight / 96,
+    width / 96,
+    height / 96,
   );
   return pdf;
 }

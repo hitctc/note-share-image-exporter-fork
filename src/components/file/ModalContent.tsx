@@ -2,7 +2,11 @@ import { type App, type FrontMatterCache, Notice, Platform } from 'obsidian';
 import React, {
   useState, useRef, type FC, useEffect, useCallback,
 } from 'react';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import {
+  TransformWrapper,
+  TransformComponent,
+  type ReactZoomPanPinchContentRef,
+} from 'react-zoom-pan-pinch';
 import { isCopiable } from 'src/imageFormatTester';
 import { copy, save, saveAll } from '../../utils/capture';
 import { hasValidExportWidth, syncUnifiedPadding } from '../../utils/settings';
@@ -275,7 +279,6 @@ interface Props {
   frontmatter: FrontMatterCache | undefined;
   metadataMap: Record<string, { type: MetadataType }>;
   title: string;
-  modalContainerEl: HTMLElement;
 }
 
 /**
@@ -287,8 +290,12 @@ function getFormatDisplayName(format: FileFormat): string {
   return format.replace(/\d$/, '').toUpperCase();
 }
 
+const PREVIEW_MAX_HEIGHT = 560;
+const PREVIEW_MIN_HEIGHT = 320;
+const PREVIEW_COLUMN_EXTRA_HEIGHT = 80;
+
 const ModalContent: FC<Props> = ({
-  markdownEl, settings, frontmatter, metadataMap, title, app, modalContainerEl,
+  markdownEl, settings, frontmatter, metadataMap, title, app,
 }) => {
   const [formData, setFormData] = useState<ISettings>(settings);
   const [availableFormats, setAvailableFormats] = useState<FileFormat[]>(formatAvailable);
@@ -310,29 +317,30 @@ const ModalContent: FC<Props> = ({
   }, [formData]);
 
   const root = useRef<TargetRef>(null);
+  const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
   const [mainHeight, setMainHeight] = useState(0);
+  const [fitScale, setFitScale] = useState(1);
   const [isGrabbing, setIsGrabbing] = useState(false);
   const previewOutRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const calculateHeight = () => {
-      const height = modalContainerEl.clientHeight;
-      if (height) {
-        setMainHeight(height - 160);
-      }
+      // 预览高度只参考窗口可用空间，不再跟随整个 Modal 容器内容高度增长。
+      const height = Math.min(
+        PREVIEW_MAX_HEIGHT,
+        Math.max(PREVIEW_MIN_HEIGHT, Math.round(activeWindow.innerHeight * 0.8) - 280),
+      );
+      setMainHeight(height);
     };
 
-    // 初始计算
     calculateHeight();
-
-    // 监听窗口大小变化
     activeWindow.addEventListener('resize', calculateHeight);
 
     return () => {
       activeWindow.removeEventListener('resize', calculateHeight);
     };
-  }, [modalContainerEl]);
+  }, []);
 
   useEffect(() => {
     let timeoutId: number | undefined;
@@ -369,6 +377,7 @@ const ModalContent: FC<Props> = ({
   const [rootHeight, setRootHeight] = useState(0);
   const [pages, setPages] = useState(1);
   const [scale, setScale] = useState(1);
+  const previewColumnHeight = mainHeight + PREVIEW_COLUMN_EXTRA_HEIGHT;
 
   const calculateScale = useCallback(() => {
     if (!root.current?.element || !previewOutRef.current) return 1;
@@ -382,6 +391,19 @@ const ModalContent: FC<Props> = ({
       previewWidth / ((contentWidth || 0) + 2),
     );
   }, [mainHeight]);
+
+  /**
+   * 将预览恢复到当前容器能完整显示图片的比例并重新居中。
+   * @returns 无返回值；通过预览组件实例更新缩放和位置
+   */
+  const resetPreview = useCallback(() => {
+    if (!transformRef.current) return;
+
+    const nextScale = calculateScale();
+    setFitScale(nextScale);
+    setScale(nextScale);
+    transformRef.current.centerView(nextScale, 160);
+  }, [calculateScale]);
 
   useEffect(() => {
     if (!root.current?.element || processing) {
@@ -497,9 +519,12 @@ const ModalContent: FC<Props> = ({
   }, [root, formData.format, formData.resolutionMode, formData.split, app, title]);
 
   return (
-    <div className='export-image-preview-root'>
-      <div className='export-image-preview-main'>
-        <div className='export-image-preview-left'>
+    <div className='export-image-preview-root export-image-file-preview-root'>
+      <div className='export-image-preview-main export-image-file-preview-main'>
+        <div
+          className='export-image-preview-left'
+          style={{ height: previewColumnHeight }}
+        >
           <div
             className='export-image-preview-out'
             ref={previewOutRef}
@@ -515,11 +540,13 @@ const ModalContent: FC<Props> = ({
               </div>
             ) : (
               <TransformWrapper
+                ref={transformRef}
                 // 先允许缩放到较小比例，再在组件初始化后按容器尺寸适配完整预览。
                 minScale={0.01}
                 maxScale={4}
-                pinch={{ step: 20 }}
-                doubleClick={{ mode: 'reset' }}
+                wheel={{ smoothStep: 0.0015 }}
+                panning={{ velocityDisabled: true }}
+                doubleClick={{ disabled: true }}
                 centerZoomedOut={false}
                 onPanning={() => {
                   setIsGrabbing(true);
@@ -527,20 +554,24 @@ const ModalContent: FC<Props> = ({
                 onPanningStop={() => {
                   setIsGrabbing(false);
                 }}
-                onInit={(transformRef) => {
+                onInit={(previewRef) => {
                   // 此时 Target 已挂载，可以测量真实长宽并让长边完整显示。
                   activeWindow.requestAnimationFrame(() => {
-                    const fitScale = calculateScale();
-                    transformRef.centerView(fitScale, 0);
-                    setScale(fitScale);
+                    const nextScale = calculateScale();
+                    setFitScale(nextScale);
+                    previewRef.centerView(nextScale, 0);
+                    setScale(nextScale);
                   });
                 }}
                 onTransformed={(e) => {
                   setScale(e.state.scale);
                 }}
-                initialScale={1}
+                initialScale={fitScale}
               >
                 <TransformComponent
+                  wrapperProps={{
+                    onDoubleClick: resetPreview,
+                  }}
                   wrapperStyle={{
                     width: '100%',
                     height: mainHeight,
@@ -570,51 +601,53 @@ const ModalContent: FC<Props> = ({
           </div>
           <div className='info-text'>{L.guide()}</div>
         </div>
-        <div className='export-image-preview-right'>
-          <FormItems
-            formSchema={getFormSchema(formData, availableFormats)}
-            update={handleUpdate}
-            settings={formData}
-            app={app}
-          />
-          {formData.split.mode !== 'none' && formData.split.mode !== 'hr' && <div className='info-text'>
-            {L.splitInfo({ rootHeight, splitHeight: formData.split.height, pages })}
-          </div>}
-          {formData.split.mode === 'hr' && <div className='info-text'>
-            {L.splitInfoHr({ rootHeight, pages })}
-          </div>}
-          <div className='info-text'>{L.moreSetting()}</div>
-        </div>
-      </div>
-      <div className='export-image-preview-actions'>
-        {pages === 1 && (
-          <div>
+        <div className='export-image-preview-right export-image-file-preview-right'>
+          <div className='export-image-file-preview-settings'>
+            <FormItems
+              formSchema={getFormSchema(formData, availableFormats)}
+              update={handleUpdate}
+              settings={formData}
+              app={app}
+            />
+            {formData.split.mode !== 'none' && formData.split.mode !== 'hr' && <div className='info-text'>
+              {L.splitInfo({ rootHeight, splitHeight: formData.split.height, pages })}
+            </div>}
+            {formData.split.mode === 'hr' && <div className='info-text'>
+              {L.splitInfoHr({ rootHeight, pages })}
+            </div>}
+            <div className='info-text'>{L.moreSetting()}</div>
+          </div>
+          <div className='export-image-preview-actions export-image-file-preview-actions'>
+            {pages === 1 && (
+              <div>
+                <button
+                  onClick={() => {
+                    void handleCopy();
+                  }}
+                  disabled={processing || !allowCopy || isLoading}
+                  aria-busy={processingAction === 'copy'}
+                >
+                  {processingAction === 'copy' && <span className='export-image-action-spinner' aria-hidden='true'></span>}
+                  {L.copy()}
+                </button>
+                {allowCopy || <p>{L.notAllowCopy({ format: formData.format.replace(/\d$/, '').toUpperCase() })}</p>}
+              </div>
+            )}
+
             <button
               onClick={() => {
-                void handleCopy();
+                void (pages === 1 ? handleSave() : handleSaveAll());
               }}
-              disabled={processing || !allowCopy || isLoading}
-              aria-busy={processingAction === 'copy'}
+              disabled={processing || isLoading}
+              aria-busy={processingAction === 'save' || processingAction === 'saveAll'}
             >
-              {processingAction === 'copy' && <span className='export-image-action-spinner' aria-hidden='true'></span>}
-              {L.copy()}
+              {(processingAction === 'save' || processingAction === 'saveAll') && (
+                <span className='export-image-action-spinner' aria-hidden='true'></span>
+              )}
+              {saveButtonLabel}
             </button>
-            {allowCopy || <p>{L.notAllowCopy({ format: formData.format.replace(/\d$/, '').toUpperCase() })}</p>}
           </div>
-        )}
-
-        <button
-          onClick={() => {
-            void (pages === 1 ? handleSave() : handleSaveAll());
-          }}
-          disabled={processing || isLoading}
-          aria-busy={processingAction === 'save' || processingAction === 'saveAll'}
-        >
-          {(processingAction === 'save' || processingAction === 'saveAll') && (
-            <span className='export-image-action-spinner' aria-hidden='true'></span>
-          )}
-          {saveButtonLabel}
-        </button>
+        </div>
       </div>
     </div>
   );

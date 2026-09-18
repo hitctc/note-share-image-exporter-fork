@@ -166,6 +166,50 @@ If your plugin does not need CSS, delete this file.
   text-align: center;
 }
 
+.export-image-file-preview-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.export-image-file-preview-main {
+  flex: 1 1 auto;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  min-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.export-image-file-preview-main .export-image-preview-left,
+.export-image-file-preview-main .export-image-preview-right {
+  width: 50%;
+}
+
+.export-image-file-preview-right {
+  display: flex;
+  flex: 0 0 50%;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.export-image-file-preview-settings {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.export-image-file-preview-actions {
+  position: static;
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .export-image-root .multi-select-pill-content {
   margin: 0 6px;
 }

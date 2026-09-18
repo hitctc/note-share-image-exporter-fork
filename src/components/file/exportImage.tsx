@@ -18,6 +18,9 @@ import { getMetadataMap, waitForAsyncRenders, waitForElement } from 'src/utils';
 import { copy } from 'src/utils/capture';
 import { hasValidExportWidth } from 'src/utils/settings';
 
+// 集中配置导出预览弹窗高度，后续调整高度只需修改这里。
+const EXPORT_MODAL_HEIGHT = '80vh';
+
 function waitForTargetReady(ready: Promise<void>, timeout = 2000): Promise<void> {
   return new Promise(resolve => {
     const timer = window.setTimeout(resolve, timeout);
@@ -97,7 +100,17 @@ export default async function (
     modal.modalEl.setCssStyles({
       width: '85vw',
       maxWidth: '1500px',
+      height: EXPORT_MODAL_HEIGHT,
+      maxHeight: EXPORT_MODAL_HEIGHT,
       paddingBottom: '0',
+      overflow: 'hidden',
+    });
+    modal.contentEl.setCssStyles({
+      flex: '1 1 auto',
+      minHeight: '0',
+      paddingTop: '0',
+      paddingBottom: '0',
+      overflow: 'hidden',
     });
     modal.open();
     const root = createRoot(modal.contentEl);
@@ -112,7 +125,6 @@ export default async function (
         title={file.basename}
         metadataMap={metadataMap}
         app={app}
-        modalContainerEl={modal.containerEl}
       />,
     );
 
