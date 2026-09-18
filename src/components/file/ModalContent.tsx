@@ -278,6 +278,15 @@ interface Props {
   modalContainerEl: HTMLElement;
 }
 
+/**
+ * 将内部格式值转换为按钮中展示的格式名称。
+ * @param format 当前导出格式
+ * @returns 去除 PNG 分辨率后缀并转为大写的格式名称
+ */
+function getFormatDisplayName(format: FileFormat): string {
+  return format.replace(/\d$/, '').toUpperCase();
+}
+
 const ModalContent: FC<Props> = ({
   markdownEl, settings, frontmatter, metadataMap, title, app, modalContainerEl,
 }) => {
@@ -355,6 +364,7 @@ const ModalContent: FC<Props> = ({
 
   const [processing, setProcessing] = useState(false);
   const [allowCopy, setAllowCopy] = useState(false);
+  const saveButtonLabel = `${Platform.isMobile ? L.saveVault() : L.save()} (${getFormatDisplayName(formData.format)})`;
   const [rootHeight, setRootHeight] = useState(0);
   const [pages, setPages] = useState(1);
   const [scale, setScale] = useState(1);
@@ -581,7 +591,7 @@ const ModalContent: FC<Props> = ({
           }}
           disabled={processing || isLoading}
         >
-          {Platform.isMobile ? L.saveVault() : L.save()}
+          {saveButtonLabel}
         </button>
       </div>
     </div>
