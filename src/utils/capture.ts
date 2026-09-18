@@ -10,6 +10,7 @@ import { fileToBase64, getMime } from '.';
 import { calculateSplitPositions, getElementMeasures } from './split';
 import { hasValidExportWidth } from './settings';
 import { embedInvisibleAssetMark } from './invisibleAssetMark';
+import { revealFileInFolder, saveBlobToDownloads } from './downloads';
 
 type ExportTarget = {
   element: HTMLElement;
@@ -23,7 +24,25 @@ type ExportBlobFile = {
   filename: string;
 };
 
-function saveAs(blob: Blob, filename: string) {
+/**
+ * 保存导出结果。桌面端自己写入系统下载目录，从而拿到确定路径供导出后定位文件使用；
+ * 拿不到桌面能力时回退到浏览器下载，此时路径未知。
+ * @returns 桌面端写入的文件绝对路径；回退下载时为 undefined
+ */
+async function saveAs(blob: Blob, filename: string): Promise<string | undefined> {
+  const filePath = await saveBlobToDownloads(blob, filename);
+  if (filePath) {
+    return filePath;
+  }
+
+  downloadInBrowser(blob, filename);
+  return undefined;
+}
+
+/**
+ * 兜底下载：通过临时 a 标签交给浏览器/Electron 处理文件落盘。
+ */
+function downloadInBrowser(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = activeDocument.createElement('a');
   a.href = url;
@@ -320,6 +339,10 @@ export async function createSplitExportBlob(
   return new Blob([zipSync(zipFiles, { level: 0 })], { type: 'application/zip' });
 }
 
+/**
+ * 保存单个导出结果。
+ * @returns 桌面端返回落盘文件的绝对路径，移动端返回 vault 内路径；无路径可返回时为 undefined
+ */
 export async function save(
   app: App,
   el: HTMLElement,
@@ -328,7 +351,7 @@ export async function save(
   format: FileFormat,
   isMobile: boolean,
   assetMark: ISettings['assetMark'],
-) {
+): Promise<string | undefined> {
   const filename = `${title.replaceAll(/\s+/g, '_')}.${format.replace(/\d$/, '')}`;
   switch (format) {
     case 'jpg':
@@ -342,11 +365,10 @@ export async function save(
         );
         await app.vault.createBinary(filePath, await blob.arrayBuffer());
         new Notice(L.saveSuccess({ filePath }));
-      } else {
-        saveAs(blob, filename);
+        return filePath;
       }
 
-      break;
+      return saveAs(blob, filename);
     }
 
     case 'pdf': {
@@ -357,11 +379,10 @@ export async function save(
         );
         await app.vault.createBinary(filePath, await blob.arrayBuffer());
         new Notice(L.saveSuccess({ filePath }));
-      } else {
-        saveAs(blob, filename);
+        return filePath;
       }
 
-      break;
+      return saveAs(blob, filename);
     }
   }
 }
@@ -420,6 +441,7 @@ export async function saveMultipleFiles(
   }
 
   let finished = 0;
+  let lastSavedPath: string | undefined;
   const { format, resolutionMode, split } = settings;
 
   const tasks = files.map(file => async () => {
@@ -458,9 +480,10 @@ export async function saveMultipleFiles(
       };
 
       if (split.mode === 'none') {
-        await save(app, el, file.basename, resolutionMode, format, Platform.isMobile, settings.assetMark);
+        const filePath = await save(app, el, file.basename, resolutionMode, format, Platform.isMobile, settings.assetMark);
+        lastSavedPath = filePath ?? lastSavedPath;
       } else {
-        await saveAll(
+        const filePath = await saveAll(
           target,
           format,
           resolutionMode,
@@ -471,6 +494,7 @@ export async function saveMultipleFiles(
           file.basename,
           settings.assetMark,
         );
+        lastSavedPath = filePath ?? lastSavedPath;
       }
     } catch (err) {
       console.error(`Failed to export ${file.path}:`, err);
@@ -484,6 +508,11 @@ export async function saveMultipleFiles(
   });
 
   await runWithConcurrency(tasks, 3);
+
+  // 批量导出只定位一次，否则会同时弹出多个文件管理器窗口。
+  if (lastSavedPath) {
+    revealFileInFolder(lastSavedPath);
+  }
 }
 
 const IMAGE_URL_CACHE_MAX_ENTRIES = 10;
@@ -533,6 +562,10 @@ export async function getRemoteImageUrl(url?: string) {
   }
 }
 
+/**
+ * 保存拆分后的导出结果（pdf 单文件或图片打包 zip）。
+ * @returns 桌面端返回落盘文件的绝对路径，移动端返回最后写入的 vault 内路径
+ */
 export async function saveAll(
   target: ExportTarget,
   format: FileFormat,
@@ -543,7 +576,7 @@ export async function saveAll(
   app: App,
   title: string,
   assetMark: ISettings['assetMark'],
-) {
+): Promise<string | undefined> {
   const filename = `${title.replaceAll(/\s+/g, '_')}.${format === 'pdf' ? 'pdf' : 'zip'}`;
   const files = await createSplitExportFiles(
     target,
@@ -557,11 +590,13 @@ export async function saveAll(
   );
 
   if (Platform.isMobile) {
+    let lastFilePath: string | undefined;
     for (const file of files) {
       const filePath = await saveToVault(app, file.blob, file.filename);
       new Notice(L.saveSuccess({ filePath }));
+      lastFilePath = filePath;
     }
-    return;
+    return lastFilePath;
   }
 
   if (format === 'pdf') {
@@ -569,8 +604,7 @@ export async function saveAll(
     if (!file) {
       failSave();
     }
-    saveAs(file.blob, file.filename);
-    return;
+    return saveAs(file.blob, file.filename);
   }
 
   const zipFiles: Record<string, Uint8Array> = {};
@@ -578,5 +612,5 @@ export async function saveAll(
     zipFiles[file.filename] = new Uint8Array(await file.blob.arrayBuffer());
   }
   const zipBlob = new Blob([zipSync(zipFiles, { level: 0 })], { type: 'application/zip' });
-  saveAs(zipBlob, filename);
+  return saveAs(zipBlob, filename);
 }

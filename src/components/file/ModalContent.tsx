@@ -9,6 +9,7 @@ import {
 } from 'react-zoom-pan-pinch';
 import { isCopiable } from 'src/imageFormatTester';
 import { copy, save, saveAll } from '../../utils/capture';
+import { revealFileInFolder } from '../../utils/downloads';
 import { hasValidExportWidth, syncUnifiedPadding } from '../../utils/settings';
 import L from '../../L';
 import Target, { type TargetRef } from '../common/Target';
@@ -477,7 +478,7 @@ const ModalContent: FC<Props> = ({
     setProcessing(true);
     setProcessingAction('save');
     try {
-      await save(
+      const filePath = await save(
         app,
         root.current.contentElement,
         title,
@@ -486,6 +487,10 @@ const ModalContent: FC<Props> = ({
         Platform.isMobile,
         formData.assetMark,
       );
+      // 导出成功后定位到文件，避免用户自己去找落盘位置。
+      if (filePath) {
+        revealFileInFolder(filePath);
+      }
     } catch {
       new Notice(L.saveFail());
     } finally {
@@ -522,7 +527,7 @@ const ModalContent: FC<Props> = ({
     setProcessing(true);
     setProcessingAction('saveAll');
     try {
-      await saveAll(
+      const filePath = await saveAll(
         root.current,
         formData.format,
         formData.resolutionMode,
@@ -533,6 +538,10 @@ const ModalContent: FC<Props> = ({
         title,
         formData.assetMark,
       );
+      // 导出成功后定位到文件，避免用户自己去找落盘位置。
+      if (filePath) {
+        revealFileInFolder(filePath);
+      }
     } catch {
       new Notice(L.saveFail());
     } finally {
